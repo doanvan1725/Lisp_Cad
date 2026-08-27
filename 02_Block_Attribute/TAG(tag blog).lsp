@@ -245,6 +245,65 @@
   res
 )
 
+;; ---------- Tim INSERT gan mot diem ----------
+;; Dung khi block cu bi thay bang block moi, handle cu khong con hop le.
+(defun TAG:FindBlockNearPoint (pt tol / ss i ent obj ip best bestd d nameVal)
+  (setq best nil
+        bestd nil
+  )
+  (if (and pt tol (> tol 0.0))
+    (progn
+      (setq ss (ssget "_X" '((0 . "INSERT"))))
+      (if ss
+        (progn
+          (setq i 0)
+          (repeat (sslength ss)
+            (setq ent (ssname ss i))
+            (setq i (1+ i))
+            (setq obj (vlax-ename->vla-object ent))
+            (setq nameVal nil)
+            (setq ip (vl-catch-all-apply 'vlax-get (list obj 'InsertionPoint)))
+            (if (not (vl-catch-all-error-p ip))
+              (progn
+                (setq d (distance pt ip))
+                ;; uu tien block co ATT NAME va gan diem nhat
+                (if (and (<= d tol)
+                         (setq nameVal (TAG:GetAttValue obj "NAME"))
+                         (or (null bestd) (< d bestd)))
+                  (setq best ent
+                        bestd d)
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+  best
+)
+
+;; ---------- Thu hoi block theo handle cu / leader / diem chen ----------
+(defun TAG:ResolveBlock (blkHandle ldrHandle / blkEnt ldrEnt pts anchor newEnt)
+  (setq blkEnt (handent blkHandle))
+  (if (and blkEnt (= (cdr (assoc 0 (entget blkEnt))) "INSERT"))
+    blkEnt
+    (progn
+      (setq ldrEnt (handent ldrHandle))
+      (if ldrEnt
+        (progn
+          (setq pts (TAG:LeaderPts ldrEnt))
+          ;; diem dau cua leader la diem block / diem pick ban dau
+          (setq anchor (car pts))
+          ;; dung do le nho de bat block moi tai cung vi tri
+          (setq newEnt (TAG:FindBlockNearPoint anchor 1e-3))
+        )
+      )
+      newEnt
+    )
+  )
+)
+
 ;; ---------- Chieu cao chu ----------
 (defun TAG:TextH ( / h)
   (setq h (* (getvar "DIMTXT")
@@ -569,7 +628,7 @@
         (setq mdec (if (nth 7 lst) (atoi (cdr (nth 7 lst))) 3))
         (if (or (< mdec 0) (> mdec 8)) (setq mdec 3))
         (setq dir (if (= dirStr "L") -1.0 1.0))
-        (setq blkEnt (handent blkHandle)
+        (setq blkEnt (TAG:ResolveBlock blkHandle ldrHandle)
               lenEnt (if (= lenHandle "NONE") nil (handent lenHandle))  ; *** v3 ***
               ldrEnt (handent ldrHandle)
         )
@@ -581,6 +640,12 @@
             (setq distRaw (car (TAG:GetLenRaw blkObj propName)))
             (if nameVal
               (progn
+                ;; Neu block da duoc thay va tim lai duoc block moi,
+                ;; cap nhat lai handle trong XDATA de lan sau bam vao dung block.
+                (if (/= blkHandle (cdr (assoc 5 (entget blkEnt))))
+                  (setq blkHandle (cdr (assoc 5 (entget blkEnt))))
+                )
+
                 ;; --- Cap nhat dong NAME ---
                 (vla-put-TextString (vlax-ename->vla-object ent) nameVal)
 
@@ -618,6 +683,19 @@
                     )
                   )
                 )
+
+                ;; Luu lai XDATA voi handle block hien tai, de TAGUPDATE
+                ;; lan sau van bam dung block moi sau khi THAYBLOCK.
+                (TAG:PutXData
+                  ent
+                  (cdr (assoc 5 (entget blkEnt)))
+                  unit
+                  (if lenEnt (cdr (assoc 5 (entget lenEnt))) "NONE")
+                  (if ldrEnt (cdr (assoc 5 (entget ldrEnt))) "NONE")
+                  dirStr
+                  mdec
+                )
+
                 (setq cnt (1+ cnt))
               )
             )
@@ -634,21 +712,23 @@
 
 (defun c:TAGUPDATE () (TAG:UpdateAll))
 
-;; ---------- Reactor: tu dong cap nhat khi REGEN ----------
+;; ---------- Reactor: tu dong cap nhat khi REGEN / THAYBLOCK ----------
 (if (not *TAG:CmdReactor*)
   (setq *TAG:CmdReactor*
     (vlr-command-reactor "TAGREACTOR"
-      '((:vlr-commandWillStart . TAG:OnCommand))
+      '((:vlr-commandEnded . TAG:OnCommandEnded))
     )
   )
 )
 
-(defun TAG:OnCommand (calling-reactor cmd-list / cmdName)
+(defun TAG:OnCommandEnded (calling-reactor cmd-list / cmdName)
   (setq cmdName (strcase (car cmd-list)))
-  (if (wcmatch cmdName "*REGEN*")
+  (if (or (wcmatch cmdName "*REGEN*")
+          (wcmatch cmdName "*THAYBLOCK*")
+          (wcmatch cmdName "*TBL*"))
     (TAG:UpdateAll)
   )
 )
 
-(princ "\n=== TAG.LSP v6.1 da nap: Distance1 tu Parameter dong HOAC ATT; o so chu so thap phan co nut +/-. Go TAGUPDATE de cap nhat tag cu. ===")
+(princ "\n=== TAG.LSP v6.2 da nap: TAG se tu cap nhat sau THAYBLOCK/TBL hoac REGEN; Distance1 tu Parameter dong HOAC ATT. ===")
 (princ)
