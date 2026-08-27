@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>VCI.ShapeSteel</AssemblyName>
+    <RootNamespace>VCI.ShapeSteel</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Company>VCI - Cong ty Cong nghe so VCI</Company>
+    <Product>VCI Shape Steel Library (TCVN 7571)</Product>
+    <Description>Tra cuu thep hinh TCVN 7571 + ve mat cat - lenh THEPHINH</Description>
+    <Version>1.1.0</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AcadInstallPath>C:\Program Files\Autodesk\AutoCAD 2027</AcadInstallPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="AcCoreMgd">
+      <HintPath>$(AcadInstallPath)\AcCoreMgd.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="AcDbMgd">
+      <HintPath>$(AcadInstallPath)\AcDbMgd.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="AcMgd">
+      <HintPath>$(AcadInstallPath)\AcMgd.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+  </ItemGroup>
+
+</Project>
