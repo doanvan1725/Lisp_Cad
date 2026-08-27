@@ -1,47 +1,80 @@
-# Lisp_Cad
+﻿# Lisp_Cad
 
-Bộ thư viện Lisp và mã bổ trợ cho AutoCAD.
+Bo thu vien Lisp va ma bo tro cho AutoCAD.
 
-## Nội dung
+## Cach to chuc
 
-- Các file `.lsp` phục vụ thao tác bản vẽ, block, text, tọa độ, viewport và các tiện ích khác.
-- Thư mục `THEP HINH/` chứa phần mã C# cho chức năng tra cứu / tính toán thép hình.
-- Thư mục `TONG HOP/` chứa các file Lisp tổng hợp.
-
-## Cấu trúc thư mục
+Toan bo file duoc gom theo nhom chuc nang de de tim va de quan ly hon, trong khi ten file goc van giu nguyen de khong lam hong cach goi Lisp hien co.
 
 ```text
 Lisp_Cad/
 ├─ README.md
 ├─ .gitignore
-├─ *.lsp
-├─ TONG HOP/
-└─ THEP HINH/
+├─ 01_Text/
+├─ 02_Block_Attribute/
+├─ 03_Coordinate_Layout/
+├─ 04_Utilities/
+├─ THEP HINH/
+└─ TONG HOP/
 ```
 
-## Một số file chính
+## Nhom file
 
-- `ALR (GIONG AL REVIT).lsp`
+### `01_Text/`
+- `GM(chuyenMText).lsp`
+- `KTD (chen ky tu Hy Lap).lsp`
+- `UPCHU.lsp`
+- `VTT(VIET CHU).lsp`
+
+### `02_Block_Attribute/`
 - `ATTS(SYNBLOCKATT).lsp`
 - `BET(SUANBLOCKATT).lsp`
 - `BSC (UPBLOCK ATT).lsp`
+- `COPYTANGDAN(CPATT).lsp`
 - `DBL (CHEN BLOG VAO TOA DO).lsp`
+- `DanhTenAtt (DTEN).lsp`
+- `TAT_ThemAttVaoBlock.lsp`
+- `TAG(tag blog).lsp`
+- `ThayBlock(TBL).lsp`
+- `ldb (load block).lsp`
+
+### `03_Coordinate_Layout/`
+- `ALR (GIONG AL REVIT).lsp`
+- `CD (DANH_CAO_DO).lsp`
 - `DYN (VE BLOG).lsp`
 - `DTD_DanhToaDo.lsp`
+- `EDA (THAY DOI DISTANCE1).lsp`
+- `HH (LAYER HIEN HANH).lsp`
+- `KVP_KhoaViewport.lsp`
+- `TBV.lsp`
+- `TDD (LY_TRINH).lsp`
+
+### `04_Utilities/`
+- `BT.lsp`
+- `BUN(doidonviblog).lsp`
+- `DOAN.lsp`
 - `MC.lsp`
-- `TAG(tag blog).lsp`
+- `SMV (tao MV).lsp`
 - `THKL(tong_hop_KL).lsp`
-- `TONG HOP/DOAN.lsp`
-- `THEP HINH/VCI.ShapeSteel.csproj`
+- `VLX.LSP`
 
-## Ghi chú
+### `THEP HINH/`
+- C# project `VCI.ShapeSteel.csproj`
+- cac file `ShapeSteel*.cs`
+- `SectionCalc.cs`
+- `build.bat`
 
-- Tên file và thư mục được giữ nguyên để tương thích với cách gọi Lisp hiện có.
-- Thư mục `THEP HINH/bin/` và `THEP HINH/obj/` được bỏ qua trong Git để không đưa file build sinh ra tự động lên repo.
+### `TONG HOP/`
+- `DOAN.lsp` ban tong hop
 
-## Sử dụng
+## Ghi chu
 
-1. Tải repo về máy.
-2. Copy các file `.lsp` vào nơi bạn thường lưu thư viện AutoCAD.
-3. Dùng `APPLOAD` hoặc cơ chế load Lisp bạn đang dùng để nạp file cần thiết.
-4. Với phần `THEP HINH`, mở project trong Visual Studio nếu muốn build lại DLL.
+- Thu muc `THEP HINH/bin/` va `THEP HINH/obj/` duoc bo qua trong Git.
+- Cau truc nay chi thay doi cach sap xep trong repo, khong doi ten file goc.
+
+## Su dung
+
+1. Tai repo ve may.
+2. Mo dung thu muc theo nhom chuc nang ban can.
+3. Dung `APPLOAD` hoac co che load Lisp hien co de nap file can thiet.
+4. Neu can build phan thep hinh, mo project trong Visual Studio.
