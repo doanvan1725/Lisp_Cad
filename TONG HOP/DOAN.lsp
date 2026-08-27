@@ -44,7 +44,7 @@
 ;;;      DTD / DTDMOVE / DTDCOPY : Danh toa do cho block va diem, tu cap nhat khi REGEN
 ;;;      CD                     : Danh cao do tuong doi
 ;;;      TDD                    : Danh ly trinh / cao do tuong doi cho block
-;;;      MC                     : Danh ky hieu mat cat (2 ky hieu, co lat guong)
+;;;      MC                     : Danh ky hieu mat cat (v1.6 - danh sach block ATT MATCAT + xem truoc)
 ;;;
 ;;;  NHOM 6 - LAYOUT / VIEWPORT
 ;;;      SMV                    : Tao Mview theo ty le nhap tu Model
@@ -3183,6 +3183,13 @@
   (vl-sort res (function (lambda (a b) (< (strcase (car a)) (strcase (car b))))))
 )
 
+;; ---------- Cap nhat TAG sau khi thay block ----------
+(defun TBL:RefreshTagsAfterReplace ( / )
+  (if (fboundp 'TAG:UpdateAll)
+    (TAG:UpdateAll)
+  )
+)
+
 ;; =========================================================================
 ;; ===============  XEM TRUOC HINH DANG BLOCK (v3)  ========================
 ;; =========================================================================
@@ -3626,6 +3633,7 @@
                  (if (> skip 0) (strcat ", bo qua " (itoa skip)) "")
                  ". Block moi: " newName
                  " | Tham so giu nguyen: " propName))
+  (TBL:RefreshTagsAfterReplace)
   (princ)
 )
 
@@ -8030,10 +8038,10 @@
 
 ;;; ---------------------------------------------------------------------------
 ;;; [24] MC
-;;;      Danh ky hieu mat cat (2 ky hieu, co lat guong)
+;;;      Danh ky hieu mat cat (v1.6 - danh sach block ATT MATCAT + xem truoc)
 ;;;      Nguon: MC.lsp
 ;;; ---------------------------------------------------------------------------
-;;; MC v1.4 - Chen ky hieu mat cat lien tuc (2 diem / 1 lan)
+;;; MC v1.6 - Chen ky hieu mat cat lien tuc (2 diem / 1 lan)
 ;;; Lenh: MC
 ;;; MOI o v1.2:
 ;;;   - Ban ve chua co block -> tu tim file .dwg tren support path
@@ -8046,6 +8054,25 @@
 ;;;   - Truc guong nam DOC THEO duong cat, di qua dung diem chen
 ;;;     -> block chi dao huong, khong xe dich vi tri.
 ;;;   - Tu dat MIRRTEXT = 0 khi lat de chu/ATT khong bi nguoc.
+;;; MOI o v1.5:
+;;;   - Them O SO XUONG (popup list) liet ke cac BLOCK CO ATT "MATCAT"
+;;;     dang co trong ban ve -> chon thang, khong phai go tay ten block.
+;;;   - O "Loc ATT tag" cho phep doi tag can loc (mac dinh MATCAT),
+;;;     nhan ca ky tu dai dien (vd: MAT*).
+;;;       + De TRONG   -> liet ke moi block CO Attribute (bat ky tag nao)
+;;;       + Go dau *   -> liet ke TAT CA block trong ban ve
+;;;   - Nut "Loc lai" de quet lai ban ve sau khi vua chen/nap them block.
+;;;   - Chon block trong danh sach: tu dien ten vao o "Ten block" va
+;;;     tu dien tag vao o "Tag ATT" neu o do dang bo trong.
+;;; MOI o v1.6:
+;;;   - NHUNG O XEM TRUOC (view CAD) ngay trong hop thoai: nen den, ve lai
+;;;     hinh dang block bang vector - giong che do xem truoc cua CAD.
+;;;   - Tu dong ve lai khi doi dong trong danh sach hoac go tay ten block.
+;;;   - Ve duoc: Line, Circle, Arc, Polyline, Spline, Ellipse, SOLID/TRACE
+;;;     (mui ten mat cat), block long nhau (toi da 3 cap).
+;;;     Text / ATTDEF ve KHUNG BAO mo (mau xam) de biet cho dat nhan.
+;;;   - Giu nguyen mau ACI cua doi tuong nhu ngoai ban ve.
+;;;   - Co bo nho dem: block da ve 1 lan thi doi qua doi lai khong bi giat.
 ;;; ============================================================
 
 (vl-load-com)
@@ -8059,6 +8086,7 @@
 (if (null *mc-rot*)   (setq *mc-rot*   T))
 (if (null *mc-dbg*)   (setq *mc-dbg*   nil))
 (if (null *mc-flip*)  (setq *mc-flip*  nil))    ; *** v1.4: T = lat ca 2 block
+(if (null *mc-ftag*)  (setq *mc-ftag*  "MATCAT")) ; *** v1.5: tag dung de loc block
 (if (null *mc-scale*)
   (setq *mc-scale*
     (cond
@@ -8182,6 +8210,421 @@
   )
 )
 
+;; ============ *** v1.5: QUET BLOCK CO ATT THEO TAG ============
+;; Kiem tra 1 dinh nghia block co chua ATTDEF khop tag hay khong.
+;;   tag = ""  -> chi can block co bat ky ATTDEF nao
+;;   tag khac  -> so khop kieu wcmatch (nhan ky tu dai dien: * ? # @ ~ ,)
+(defun mc-blk-has-att (bname tag / bn en ed typ tg found)
+  (setq found nil)
+  (if (setq bn (tblobjname "BLOCK" bname))
+    (progn
+      (setq en (entnext bn))
+      (while (and en (not found))
+        (setq ed  (entget en)
+              typ (cdr (assoc 0 ed))
+        )
+        (cond
+          ((= typ "ENDBLK") (setq en nil))
+          ((= typ "ATTDEF")
+           (setq tg (strcase (cdr (assoc 2 ed))))
+           (if (or (= tag "") (wcmatch tg (strcase tag)))
+             (setq found T)
+             (setq en (entnext en))
+           )
+          )
+          (t (setq en (entnext en)))
+        )
+      )
+    )
+  )
+  found
+)
+
+;; Tra ve danh sach ten block (da sap xep A-Z) thoa dieu kien loc.
+;;   tag = "*" -> lay TAT CA block (khong can co ATT)
+;;   tag = ""  -> block co bat ky ATTDEF nao
+;;   nguoc lai -> block co ATTDEF khop tag
+;; Da loai: block an danh (*U, *D, *Model_Space...), XREF va block phu thuoc XREF.
+(defun mc-list-blocks (tag / rec nm flg lst)
+  (setq lst nil
+        tag (vl-string-trim " \t" tag)
+        rec (tblnext "BLOCK" T)
+  )
+  (while rec
+    (setq nm  (cdr (assoc 2 rec))
+          flg (cdr (assoc 70 rec))
+    )
+    (if (null flg) (setq flg 0))
+    (if (and nm
+             (/= nm "")
+             (/= (substr nm 1 1) "*")        ; bo block an danh / khong gian
+             (zerop (logand 1  flg))         ; bo anonymous
+             (zerop (logand 4  flg))         ; bo external reference
+             (zerop (logand 8  flg))         ; bo block phu thuoc xref
+             (zerop (logand 32 flg))         ; bo xref chua resolve
+             (or (= tag "*") (mc-blk-has-att nm tag))
+        )
+      (setq lst (cons nm lst))
+    )
+    (setq rec (tblnext "BLOCK"))
+  )
+  (if lst
+    (vl-sort lst '(lambda (a b) (< (strcase a) (strcase b))))
+    nil
+  )
+)
+
+;; Co chua ky tu dai dien khong?
+(defun mc-has-wild (s)
+  (or (vl-string-search "*" s) (vl-string-search "?" s)
+      (vl-string-search "#" s) (vl-string-search "@" s)
+      (vl-string-search "~" s) (vl-string-search "," s)
+      (vl-string-search "[" s)
+  )
+)
+
+;; Quet lai ban ve va do vao popup_list "blist".
+(defun mc-refresh-list (/ cur i idx n)
+  (setq *mc-ftag*  (vl-string-trim " \t" (get_tile "ftag"))
+        *mc-blist* (mc-list-blocks *mc-ftag*)
+        cur        (strcase (vl-string-trim " \t\"" (get_tile "blk")))
+  )
+  (start_list "blist")
+  (if *mc-blist*
+    (foreach b *mc-blist* (add_list b))
+    (add_list "<khong co block nao thoa dieu kien>")
+  )
+  (end_list)
+  ;; chon lai dung block dang ghi trong o "Ten block" (neu co trong danh sach)
+  (setq i 0 idx nil)
+  (foreach b *mc-blist*
+    (if (and (null idx) (= (strcase b) cur)) (setq idx i))
+    (setq i (1+ i))
+  )
+  (set_tile "blist" (if idx (itoa idx) "0"))
+  (setq n (length *mc-blist*))
+  (set_tile "binfo"
+    (cond
+      ((= n 0) (strcat "Khong tim thay block nao co ATT \""
+                       (if (= *mc-ftag* "") "<bat ky>" *mc-ftag*) "\" trong ban ve."))
+      ((= *mc-ftag* "*") (strcat "Co " (itoa n) " block trong ban ve (khong loc ATT)."))
+      ((= *mc-ftag* "")  (strcat "Co " (itoa n) " block co Attribute."))
+      (t (strcat "Co " (itoa n) " block co ATT \"" (strcase *mc-ftag*) "\"."))
+    )
+  )
+  ;; *** v1.6: ve lai o xem truoc theo block dang duoc chon
+  (mc-draw-prev (if (and idx *mc-blist*) (nth idx *mc-blist*) (get_tile "blk")))
+  (princ)
+)
+
+;; ======= *** v1.6: NHUNG VIEW CAD - XEM TRUOC HINH DANG BLOCK =======
+;; Ve lai hinh dang block bang vector_image tren nen den, giong CAD.
+
+;; --- Bien doi 1 diem theo ty le / goc xoay / diem chen ---
+(defun mc-tx (p sx sy rot off / x y c s)
+  (setq x (* sx (car p))
+        y (* sy (cadr p))
+        c (cos rot)
+        s (sin rot)
+  )
+  (list (+ (car off)  (- (* x c) (* y s)))
+        (+ (cadr off) (+ (* x s) (* y c))))
+)
+
+;; --- Lay so an toan tu thuoc tinh ActiveX ---
+(defun mc-num (obj prop def / r)
+  (setq r (vl-catch-all-apply 'vlax-get-property (list obj prop)))
+  (if (or (vl-catch-all-error-p r) (not (numberp r))) def r)
+)
+
+;; --- Mau ve cho 1 doi tuong (chi so mau ACI, hop voi nen den) ---
+(defun mc-col (e / c lay r)
+  (setq c (vl-catch-all-apply 'vla-get-Color (list e)))
+  (if (or (vl-catch-all-error-p c) (not (numberp c))) (setq c 256))
+  (if (or (= c 256) (= c 0))            ; BYLAYER / BYBLOCK -> lay mau layer
+    (progn
+      (setq lay (vl-catch-all-apply 'vla-get-Layer (list e)))
+      (if (not (vl-catch-all-error-p lay))
+        (progn
+          (setq r (tblsearch "LAYER" lay))
+          (if (and r (assoc 62 r)) (setq c (abs (cdr (assoc 62 r)))))
+        )
+      )
+    )
+  )
+  (cond
+    ((not (numberp c)) 7)
+    ((or (= c 0) (= c 256) (> c 255)) 7) ; khong ro -> trang
+    (t c)
+  )
+)
+
+;; --- Khung bao (dung cho TEXT / MTEXT / ATTDEF) ---
+(defun mc-bbox-pts (e / mn mx a b)
+  (if (vl-catch-all-error-p
+        (vl-catch-all-apply 'vla-GetBoundingBox (list e 'mn 'mx)))
+    nil
+    (progn
+      (setq a (vlax-safearray->list (vlax-variant-value mn))
+            b (vlax-safearray->list (vlax-variant-value mx))
+      )
+      (if (and (> (abs (- (car b) (car a))) 1e-9)
+               (> (abs (- (cadr b) (cadr a))) 1e-9))
+        (list (list (car a) (cadr a)) (list (car b) (cadr a))
+              (list (car b) (cadr b)) (list (car a) (cadr b))
+              (list (car a) (cadr a)))
+        nil
+      )
+    )
+  )
+)
+
+;; --- Chuoi diem cua 1 doi tuong (toa do noi bo block) ---
+(defun mc-ent-pts (e / nm en sp ep n i lst r pts)
+  (setq nm  (vl-catch-all-apply 'vla-get-ObjectName (list e))
+        lst nil
+  )
+  (if (vl-catch-all-error-p nm)
+    nil
+    (progn
+      (setq en (vlax-vla-object->ename e))
+      (cond
+        ;; duong thang: 2 diem la du
+        ((= nm "AcDbLine")
+         (setq lst (list (vlax-get e 'StartPoint) (vlax-get e 'EndPoint))))
+        ;; SOLID / TRACE: mui ten mat cat thuong la SOLID -> ve vien 4 goc
+        ((member nm '("AcDbSolid" "AcDbTrace"))
+         (setq r   (entget en)
+               pts (vl-remove nil (list (cdr (assoc 10 r)) (cdr (assoc 11 r))
+                                        (cdr (assoc 13 r)) (cdr (assoc 12 r))))
+         )
+         (if (> (length pts) 2) (setq lst (append pts (list (car pts)))))
+        )
+        ;; chu / attribute: ve khung bao mo de biet cho dat nhan
+        ((member nm '("AcDbText" "AcDbMText" "AcDbAttributeDefinition"))
+         (setq lst (mc-bbox-pts e)))
+        ;; bo qua cho nhe
+        ((member nm '("AcDbHatch" "AcDbPoint")) (setq lst nil))
+        ;; con lai: lay mau theo duong cong
+        (t
+         (setq sp (vl-catch-all-apply 'vlax-curve-getStartParam (list en))
+               ep (vl-catch-all-apply 'vlax-curve-getEndParam   (list en))
+         )
+         (if (or (vl-catch-all-error-p sp) (vl-catch-all-error-p ep)
+                 (not (numberp sp)) (not (numberp ep)) (<= (- ep sp) 1e-12))
+           (setq lst nil)
+           (progn
+             (setq n (fix (* 6.0 (- ep sp))))
+             (if (< n 8)   (setq n 8))
+             (if (> n 100) (setq n 100))
+             (setq i 0)
+             (repeat (1+ n)
+               (setq r (vl-catch-all-apply
+                         'vlax-curve-getPointAtParam
+                         (list en (+ sp (* (- ep sp) (/ (float i) n))))))
+               (if (and (not (vl-catch-all-error-p r)) r)
+                 (setq lst (cons r lst)))
+               (setq i (1+ i))
+             )
+             (setq lst (reverse lst))
+           )
+         )
+        )
+      )
+      lst
+    )
+  )
+)
+
+;; --- Duyet dinh nghia block -> danh sach doan (x1 y1 x2 y2 mau) ---
+(defun mc-collect (bo sx sy rot off depth / segs nm pts col p q i
+                   blks bo2 ip co cs2 cr nm2)
+  (setq segs nil
+        blks (vla-get-Blocks (vla-get-ActiveDocument (vlax-get-acad-object)))
+  )
+  (vlax-for e bo
+    (setq nm (vl-catch-all-apply 'vla-get-ObjectName (list e)))
+    (if (not (vl-catch-all-error-p nm))
+      (if (= nm "AcDbBlockReference")
+        ;; ----- block long nhau: de quy toi da 3 cap -----
+        (if (< depth 3)
+          (progn
+            (setq ip (vl-catch-all-apply 'vlax-get (list e 'InsertionPoint)))
+            (if (not (vl-catch-all-error-p ip))
+              (progn
+                (setq co  (mc-tx ip sx sy rot off)
+                      cs2 (* sx (mc-num e 'XScaleFactor 1.0))
+                      cr  (+ rot (mc-num e 'Rotation 0.0))
+                      nm2 (vl-catch-all-apply 'vla-get-Name (list e))
+                )
+                (setq bo2 (if (vl-catch-all-error-p nm2)
+                            nm2
+                            (vl-catch-all-apply 'vla-Item (list blks nm2))))
+                (if (not (vl-catch-all-error-p bo2))
+                  (setq segs (append segs
+                               (mc-collect bo2 cs2
+                                 (* sy (mc-num e 'YScaleFactor 1.0))
+                                 cr co (1+ depth))))
+                )
+              )
+            )
+          )
+        )
+        ;; ----- doi tuong thuong -----
+        (progn
+          (setq pts (mc-ent-pts e))
+          (if (and pts (> (length pts) 1))
+            (progn
+              ;; chu / ATT ve mau xam mo cho de phan biet
+              (setq col (if (member nm '("AcDbText" "AcDbMText"
+                                         "AcDbAttributeDefinition"))
+                          8
+                          (mc-col e))
+                    i   0
+              )
+              (while (< i (1- (length pts)))
+                (setq p (mc-tx (nth i pts) sx sy rot off)
+                      q (mc-tx (nth (1+ i) pts) sx sy rot off)
+                )
+                (setq segs (cons (list (car p) (cadr p) (car q) (cadr q) col) segs))
+                (setq i (1+ i))
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+  segs
+)
+
+;; --- Lay (co bo nho dem) cac doan ve cua 1 block theo ten ---
+(defun mc-get-segs (bname / pr bo segs)
+  (setq pr (assoc (strcase bname) *mc-segcache*))
+  (if pr
+    (cdr pr)
+    (progn
+      (setq bo (vl-catch-all-apply
+                 'vla-Item
+                 (list (vla-get-Blocks
+                         (vla-get-ActiveDocument (vlax-get-acad-object)))
+                       bname)))
+      (setq segs (if (vl-catch-all-error-p bo)
+                   nil
+                   (mc-collect bo 1.0 1.0 0.0 '(0.0 0.0) 0)))
+      (setq *mc-segcache* (cons (cons (strcase bname) segs) *mc-segcache*))
+      segs
+    )
+  )
+)
+
+(defun mc-clamp (v lo hi) (max lo (min hi (fix v))))
+
+;; --- Ve xem truoc vao o image "vprev" ---
+;; LUU Y: moi set_tile phai xong TRUOC khi mo start_image,
+;;        goi set_tile giua start_image/end_image se xoa het vector da ve.
+(defun mc-draw-prev (bname / segs dx dy minx maxx miny maxy
+                     k ox oy s lst txt x1 y1 x2 y2)
+  (setq dx  (dimx_tile "vprev")
+        dy  (dimy_tile "vprev")
+        lst nil
+        txt " "
+  )
+  (setq bname (vl-string-trim " \t\"" (if bname bname "")))
+  ;; go ca duong dan .dwg -> lay ten file lam ten block
+  (if (wcmatch (strcase bname) "*.DWG") (setq bname (vl-filename-base bname)))
+  (cond
+    ((= bname "") (setq txt " "))
+    ((not (tblsearch "BLOCK" bname))
+     (setq txt (strcat "\"" bname "\" chua co trong ban ve")))
+    (t
+     (setq segs (mc-get-segs bname))
+     (if (null segs)
+       (setq txt (strcat bname " - khong ve duoc xem truoc"))
+       (progn
+         ;; --- khung bao ---
+         (setq minx nil)
+         (foreach s segs
+           (if (null minx)
+             (setq minx (min (car s) (caddr s))    maxx (max (car s) (caddr s))
+                   miny (min (cadr s) (cadddr s))  maxy (max (cadr s) (cadddr s)))
+             (setq minx (min minx (car s) (caddr s))
+                   maxx (max maxx (car s) (caddr s))
+                   miny (min miny (cadr s) (cadddr s))
+                   maxy (max maxy (cadr s) (cadddr s)))
+           )
+         )
+         (if (< (- maxx minx) 1e-9) (setq maxx (+ minx 1.0)))
+         (if (< (- maxy miny) 1e-9) (setq maxy (+ miny 1.0)))
+         (setq k  (min (/ (float (- dx 8)) (- maxx minx))
+                       (/ (float (- dy 8)) (- maxy miny)))
+               ox (/ (- dx (* k (- maxx minx))) 2.0)
+               oy (/ (- dy (* k (- maxy miny))) 2.0)
+         )
+         ;; --- doi sang toa do pixel TRUOC, chua ve voi ---
+         (foreach s segs
+           (setq x1 (mc-clamp (+ ox (* k (- (car s)     minx))) 0 (1- dx))
+                 y1 (mc-clamp (- dy oy (* k (- (cadr s)   miny))) 0 (1- dy))
+                 x2 (mc-clamp (+ ox (* k (- (caddr s)   minx))) 0 (1- dx))
+                 y2 (mc-clamp (- dy oy (* k (- (cadddr s) miny))) 0 (1- dy))
+           )
+           (setq lst (cons (list x1 y1 x2 y2 (nth 4 s)) lst))
+         )
+         (setq txt (strcat bname "   |   " (itoa (length segs)) " doan ve"))
+       )
+     )
+    )
+  )
+  ;; --- set_tile xong het roi moi mo image ---
+  (set_tile "pinfo" txt)
+  (start_image "vprev")
+  (fill_image 0 0 dx dy 0)                       ; nen den nhu CAD
+  (vector_image 0 0 (1- dx) 0 8)                 ; vien khung
+  (vector_image (1- dx) 0 (1- dx) (1- dy) 8)
+  (vector_image (1- dx) (1- dy) 0 (1- dy) 8)
+  (vector_image 0 (1- dy) 0 0 8)
+  (foreach s lst
+    (vector_image (car s) (cadr s) (caddr s) (cadddr s) (nth 4 s))
+  )
+  (end_image)
+  (princ)
+)
+
+;; Chon 1 dong trong popup_list -> do ten vao o "Ten block".
+(defun mc-pick-blk (/ i nm ft)
+  (setq i (atoi (get_tile "blist")))
+  (if (and *mc-blist* (>= i 0) (< i (length *mc-blist*)))
+    (progn
+      (setq nm (nth i *mc-blist*))
+      (set_tile "blk" nm)
+      ;; neu o Tag ATT dang trong va bo loc la 1 tag cu the -> dien luon
+      (setq ft (vl-string-trim " \t" (get_tile "ftag")))
+      (if (and (= (vl-string-trim " \t" (get_tile "tag")) "")
+               (/= ft "")
+               (not (mc-has-wild ft)))
+        (set_tile "tag" (strcase ft))
+      )
+      (mc-draw-prev nm)                          ; *** v1.6
+    )
+  )
+  (princ)
+)
+
+;; Go tay ten block trong o "blk" -> dong bo danh sach + ve lai xem truoc.
+(defun mc-typed-blk (/ cur i idx)
+  (setq cur (strcase (vl-string-trim " \t\"" (get_tile "blk")))
+        i   0
+        idx nil
+  )
+  (foreach b *mc-blist*
+    (if (and (null idx) (= (strcase b) cur)) (setq idx i))
+    (setq i (1+ i))
+  )
+  (if idx (set_tile "blist" (itoa idx)))
+  (mc-draw-prev (get_tile "blk"))
+  (princ)
+)
+
 ;; ================= GIAO DIEN =================
 (defun mc-preview (/ nm st au s i)
   (setq nm (get_tile "name")
@@ -8210,7 +8653,26 @@
   (foreach s
     (list
       "mc_dlg : dialog {"
-      "  label = \"Chen ky hieu mat cat - MC v1.4\";"
+      "  label = \"Chen ky hieu mat cat - MC v1.6\";"
+      "  : boxed_column {"
+      "    label = \"Chon block co san trong ban ve\";"
+      "    : row {"
+      "      : column {"
+      "        : popup_list { key=\"blist\"; label=\"Danh sach block:\"; width=34; }"
+      "        : row {"
+      "          : edit_box { key=\"ftag\"; label=\"Loc ATT tag:\"; edit_width=12; }"
+      "          : button { key=\"btn_flt\"; label=\"Loc lai\"; width=10; }"
+      "        }"
+      "        : text { key=\"binfo\"; label=\" \"; width=44; }"
+      "        : text { label=\"(De trong = moi block co ATT;  go  *  = tat ca block)\"; width=44; }"
+      "      }"
+      "      : boxed_column {"
+      "        label = \"Xem truoc (view CAD)\";"
+      "        : image { key=\"vprev\"; width=34; height=13; color=0; }"
+      "        : text { key=\"pinfo\"; label=\" \"; width=34; }"
+      "      }"
+      "    }"
+      "  }"
       "  : boxed_column {"
       "    label = \"Block va ty le\";"
       "    : row {"
@@ -8352,6 +8814,7 @@
 
   (vl-load-com)
   (setq doc (vla-get-ActiveDocument (vlax-get-acad-object)))
+  (setq *mc-segcache* nil)   ; *** v1.6: xoa bo nho dem xem truoc moi lan chay
 
   ;; ---------- Hop thoai (lap lai neu bam nut tim file) ----------
   (setq code 2)
@@ -8370,14 +8833,20 @@
     (set_tile "rot"   (if *mc-rot* "1" "0"))
     (set_tile "dbg"   (if *mc-dbg* "1" "0"))
     (set_tile "flip"  (if *mc-flip* "1" "0"))   ; *** v1.4
+    (set_tile "ftag"  *mc-ftag*)                ; *** v1.5
     (set_tile (if *mc-auto* "m_auto" "m_keep") "1")
+    (mc-refresh-list)                           ; *** v1.5: do danh sach block
     (mc-preview)
+    (action_tile "blist"    "(mc-pick-blk)")    ; *** v1.5
+    (action_tile "ftag"     "(mc-refresh-list)")
+    (action_tile "btn_flt"  "(mc-refresh-list)")
+    (action_tile "blk"      "(mc-typed-blk)")   ; *** v1.6
     (action_tile "name"   "(mc-preview)")
     (action_tile "step"   "(mc-preview)")
     (action_tile "m_auto" "(mc-preview)")
     (action_tile "m_keep" "(mc-preview)")
     (action_tile "btn_file"
-      "(setq *mc-blk* (get_tile \"blk\"))(done_dialog 2)"
+      "(setq *mc-blk* (get_tile \"blk\") *mc-ftag* (get_tile \"ftag\"))(done_dialog 2)"
     )
     (action_tile "accept"
       (strcat "(setq *mc-blk* (get_tile \"blk\") *mc-tag* (get_tile \"tag\")"
@@ -8385,6 +8854,7 @@
               " *mc-step* (get_tile \"step\") *mc-rot* (= (get_tile \"rot\") \"1\")"
               " *mc-dbg* (= (get_tile \"dbg\") \"1\")"
               " *mc-auto* (= (get_tile \"m_auto\") \"1\")"
+              " *mc-ftag* (get_tile \"ftag\")"
               " *mc-flip* (= (get_tile \"flip\") \"1\"))"
               "(done_dialog 1)"
       )
@@ -8514,7 +8984,7 @@
   (princ)
 )
 
-(princ "\n=== MC v1.4 da nap (toggle LAT BLOCK: lat guong ca 2 ky hieu sang phia ben kia duong cat) - Go MC de chay ===")
+(princ "\n=== MC v1.6 da nap (danh sach block co ATT MATCAT + o xem truoc view CAD) - Go MC de chay ===")
 (princ)
 
 ;;; --- HET [24] MC ---
@@ -9114,6 +9584,65 @@
   res
 )
 
+;; ---------- Tim INSERT gan mot diem ----------
+;; Dung khi block cu bi thay bang block moi, handle cu khong con hop le.
+(defun TAG:FindBlockNearPoint (pt tol / ss i ent obj ip best bestd d nameVal)
+  (setq best nil
+        bestd nil
+  )
+  (if (and pt tol (> tol 0.0))
+    (progn
+      (setq ss (ssget "_X" '((0 . "INSERT"))))
+      (if ss
+        (progn
+          (setq i 0)
+          (repeat (sslength ss)
+            (setq ent (ssname ss i))
+            (setq i (1+ i))
+            (setq obj (vlax-ename->vla-object ent))
+            (setq nameVal nil)
+            (setq ip (vl-catch-all-apply 'vlax-get (list obj 'InsertionPoint)))
+            (if (not (vl-catch-all-error-p ip))
+              (progn
+                (setq d (distance pt ip))
+                ;; uu tien block co ATT NAME va gan diem nhat
+                (if (and (<= d tol)
+                         (setq nameVal (TAG:GetAttValue obj "NAME"))
+                         (or (null bestd) (< d bestd)))
+                  (setq best ent
+                        bestd d)
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+  best
+)
+
+;; ---------- Thu hoi block theo handle cu / leader / diem chen ----------
+(defun TAG:ResolveBlock (blkHandle ldrHandle / blkEnt ldrEnt pts anchor newEnt)
+  (setq blkEnt (handent blkHandle))
+  (if (and blkEnt (= (cdr (assoc 0 (entget blkEnt))) "INSERT"))
+    blkEnt
+    (progn
+      (setq ldrEnt (handent ldrHandle))
+      (if ldrEnt
+        (progn
+          (setq pts (TAG:LeaderPts ldrEnt))
+          ;; diem dau cua leader la diem block / diem pick ban dau
+          (setq anchor (car pts))
+          ;; dung do le nho de bat block moi tai cung vi tri
+          (setq newEnt (TAG:FindBlockNearPoint anchor 1e-3))
+        )
+      )
+      newEnt
+    )
+  )
+)
+
 ;; ---------- Chieu cao chu ----------
 (defun TAG:TextH ( / h)
   (setq h (* (getvar "DIMTXT")
@@ -9438,7 +9967,7 @@
         (setq mdec (if (nth 7 lst) (atoi (cdr (nth 7 lst))) 3))
         (if (or (< mdec 0) (> mdec 8)) (setq mdec 3))
         (setq dir (if (= dirStr "L") -1.0 1.0))
-        (setq blkEnt (handent blkHandle)
+        (setq blkEnt (TAG:ResolveBlock blkHandle ldrHandle)
               lenEnt (if (= lenHandle "NONE") nil (handent lenHandle))  ; *** v3 ***
               ldrEnt (handent ldrHandle)
         )
@@ -9450,6 +9979,12 @@
             (setq distRaw (car (TAG:GetLenRaw blkObj propName)))
             (if nameVal
               (progn
+                ;; Neu block da duoc thay va tim lai duoc block moi,
+                ;; cap nhat lai handle trong XDATA de lan sau bam vao dung block.
+                (if (/= blkHandle (cdr (assoc 5 (entget blkEnt))))
+                  (setq blkHandle (cdr (assoc 5 (entget blkEnt))))
+                )
+
                 ;; --- Cap nhat dong NAME ---
                 (vla-put-TextString (vlax-ename->vla-object ent) nameVal)
 
@@ -9487,6 +10022,19 @@
                     )
                   )
                 )
+
+                ;; Luu lai XDATA voi handle block hien tai, de TAGUPDATE
+                ;; lan sau van bam dung block moi sau khi THAYBLOCK.
+                (TAG:PutXData
+                  ent
+                  (cdr (assoc 5 (entget blkEnt)))
+                  unit
+                  (if lenEnt (cdr (assoc 5 (entget lenEnt))) "NONE")
+                  (if ldrEnt (cdr (assoc 5 (entget ldrEnt))) "NONE")
+                  dirStr
+                  mdec
+                )
+
                 (setq cnt (1+ cnt))
               )
             )
@@ -9503,23 +10051,25 @@
 
 (defun c:TAGUPDATE () (TAG:UpdateAll))
 
-;; ---------- Reactor: tu dong cap nhat khi REGEN ----------
+;; ---------- Reactor: tu dong cap nhat khi REGEN / THAYBLOCK ----------
 (if (not *TAG:CmdReactor*)
   (setq *TAG:CmdReactor*
     (vlr-command-reactor "TAGREACTOR"
-      '((:vlr-commandWillStart . TAG:OnCommand))
+      '((:vlr-commandEnded . TAG:OnCommandEnded))
     )
   )
 )
 
-(defun TAG:OnCommand (calling-reactor cmd-list / cmdName)
+(defun TAG:OnCommandEnded (calling-reactor cmd-list / cmdName)
   (setq cmdName (strcase (car cmd-list)))
-  (if (wcmatch cmdName "*REGEN*")
+  (if (or (wcmatch cmdName "*REGEN*")
+          (wcmatch cmdName "*THAYBLOCK*")
+          (wcmatch cmdName "*TBL*"))
     (TAG:UpdateAll)
   )
 )
 
-(princ "\n=== TAG.LSP v6.1 da nap: Distance1 tu Parameter dong HOAC ATT; o so chu so thap phan co nut +/-. Go TAGUPDATE de cap nhat tag cu. ===")
+(princ "\n=== TAG.LSP v6.2 da nap: TAG se tu cap nhat sau THAYBLOCK/TBL hoac REGEN; Distance1 tu Parameter dong HOAC ATT. ===")
 (princ)
 
 ;;; --- HET [27] TAG / TAGUPDATE ---
@@ -10135,7 +10685,7 @@
 (princ "\n   DTD / DTDMOVE / DTDCOPY Danh toa do cho block va diem, tu cap nhat khi REGEN")
 (princ "\n   CD                     Danh cao do tuong doi")
 (princ "\n   TDD                    Danh ly trinh / cao do tuong doi cho block")
-(princ "\n   MC                     Danh ky hieu mat cat (2 ky hieu, co lat guong)")
+(princ "\n   MC                     Danh ky hieu mat cat (v1.6 - chon block + xem truoc)")
 (princ "\n-- NHOM 6 - LAYOUT / VIEWPORT")
 (princ "\n   SMV                    Tao Mview theo ty le nhap tu Model")
 (princ "\n   KVP                    Khoa / mo khoa viewport theo tung Layout")
