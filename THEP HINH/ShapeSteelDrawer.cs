@@ -318,8 +318,8 @@ namespace VCI.ShapeSteel
                 new PV(p.t, p.H - p.tf - r1, 0),
                 new PV(p.t + r1, p.H - p.tf, -B90),         // root concave
                 new PV(p.B, p.H - p.tf, 0),
-                new PV(p.B, p.H - r2, 0),
-                new PV(p.B - r2, p.H, +B90),                // toe convex
+                new PV(p.B, p.H - r2, +B90),                // toe convex
+                new PV(p.B - r2, p.H, 0),
                 new PV(0, p.H, 0),
             };
         }
