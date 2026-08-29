@@ -1,0 +1,22 @@
+#include <windows.h>
+#include "Resource.h"
+
+IDD_PIPE_DIALOG DIALOGEX 0, 0, 300, 190
+STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "VCI - ONG NUOC 2D"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT           "ONG NUOC 2D", -1, 18, 12, 150, 16
+    LTEXT           "Thong so va tuy chon tao tuyen", -1, 18, 29, 200, 12
+    LTEXT           "Duong kinh ngoai (mm):", -1, 18, 52, 135, 12
+    EDITTEXT        IDC_OD, 165, 49, 105, 18, ES_AUTOHSCROLL
+    LTEXT           "Chieu day ong (mm):", -1, 18, 77, 135, 12
+    EDITTEXT        IDC_WALL, 165, 74, 105, 18, ES_AUTOHSCROLL
+    LTEXT           "Chieu day cut (mm):", -1, 18, 102, 135, 12
+    EDITTEXT        IDC_ELBOW, 165, 99, 105, 18, ES_AUTOHSCROLL
+    LTEXT           "Ban kinh tim cut (mm):", -1, 18, 127, 135, 12
+    EDITTEXT        IDC_RADIUS, 165, 124, 105, 18, ES_AUTOHSCROLL
+    AUTOCHECKBOX    "Ve ca thanh trong ong", IDC_HOLLOW, 18, 149, 150, 14
+    DEFPUSHBUTTON   "VE TUYEN", IDOK, 165, 149, 105, 20
+    PUSHBUTTON      "Huy", IDCANCEL, 165, 169, 105, 14
+END

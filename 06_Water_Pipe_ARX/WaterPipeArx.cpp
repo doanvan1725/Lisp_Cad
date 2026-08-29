@@ -8,6 +8,7 @@
 #include "dbsymtb.h"
 #include "dbpl.h"
 #include "rxregsvc.h"
+#include "PipeDialog.cpp"
 #include <vector>
 
 using namespace VCI::WaterPipe;
@@ -45,11 +46,8 @@ static void AddGeometry(AcDbBlockTableRecord* space, const PathGeometry& geometr
 static void DrawWaterPipe()
 {
     Settings settings;
-    if (acedGetReal(L"\nĐường kính ngoài ống <90>: ", &settings.outerDiameter) == RTNONE) settings.outerDiameter = 90;
-    if (acedGetReal(L"\nChiều dày thành ống <4.5>: ", &settings.wallThickness) == RTNONE) settings.wallThickness = 4.5;
-    if (acedGetReal(L"\nChiều dày cút nối <4.5>: ", &settings.elbowWallThickness) == RTNONE) settings.elbowWallThickness = 4.5;
-    if (acedGetReal(L"\nBán kính tim cút <135>: ", &settings.bendRadius) == RTNONE) settings.bendRadius = 135;
-    if (!settings.valid()) { acutPrintf(L"\n[VCI] Thông số ống không hợp lệ."); return; }
+    bool hollow = true;
+    if (!ShowSettingsDialog(settings, hollow)) return;
 
     std::vector<AcGePoint3d> route;
     ads_point raw;
@@ -70,7 +68,7 @@ static void DrawWaterPipe()
     AcDbObjectId layer = EnsureLayer(db, L"VCI-ONG-NUOC");
     const double half = settings.outerDiameter / 2.0;
     AddGeometry(space, BuildWall(route, settings, half, half), layer);
-    AddGeometry(space, BuildWall(route, settings, half - settings.wallThickness, half - settings.elbowWallThickness), layer);
+    if (hollow) AddGeometry(space, BuildWall(route, settings, half - settings.wallThickness, half - settings.elbowWallThickness), layer);
     space->close();
     acutPrintf(L"\n[VCI] Đã tạo tuyến ống 2D, OD=%.3f, ID=%.3f.", settings.outerDiameter, settings.innerDiameter());
 }
@@ -82,6 +80,7 @@ extern "C" AcRx::AppRetCode acrxEntryPoint(AcRx::AppMsgCode msg, void* pkt)
         acrxDynamicLinker->unlockApplication(pkt);
         acrxDynamicLinker->registerAppMDIAware(pkt);
         acedRegCmds->addCommand(L"VCI_WATER_PIPE", L"ONGNUOC", L"ONGNUOC", ACRX_CMD_MODAL, DrawWaterPipe);
+        acedRegCmds->addCommand(L"VCI_WATER_PIPE", L"ONGNUOCUI", L"ONGNUOCUI", ACRX_CMD_MODAL, DrawWaterPipe);
         break;
     case AcRx::kUnloadAppMsg:
         acedRegCmds->removeGroup(L"VCI_WATER_PIPE");
