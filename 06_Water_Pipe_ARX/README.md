@@ -4,6 +4,10 @@
 
 ## Build
 
+## Tải file đã build
+
+File native đã build sẵn nằm trong thư mục `dist/VCI.WaterPipe.ARX.arx`; mở file đó trên GitHub rồi bấm biểu tượng **Download raw** để tải.
+
 1. Cài ObjectARX SDK 2025 và Visual Studio 2022 C++.
 2. Mở `VCI.WaterPipe.ARX.vcxproj`.
 3. Nếu SDK ở vị trí khác, sửa macro `ARX_SDK` thành thư mục chứa `inc` và `lib-x64`.
