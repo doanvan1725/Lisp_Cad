@@ -2,6 +2,9 @@ THEP HINH/bin/
 THEP HINH/obj/
 05_Water_Pipe/bin/
 05_Water_Pipe/obj/
+06_Water_Pipe_ARX/.vs/
+06_Water_Pipe_ARX/x64/
+06_Water_Pipe_ARX/Release/
 *.user
 *.suo
 *.cache

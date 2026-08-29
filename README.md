@@ -82,3 +82,5 @@ Lisp_Cad/
 ## Plugin ong nuoc 2D
 
 Module `05_Water_Pipe/` cung cap lenh `ONGNUOC` de ve tuyen ong 2D co thanh ong va tu dong tao cung bo tai cac diem doi huong. Xem `05_Water_Pipe/README.md`.
+
+Ban native C++ ObjectARX duoc dat tai `06_Water_Pipe_ARX/`; day la huong build chinh neu can toc do xu ly toi da va khong dung C#.
