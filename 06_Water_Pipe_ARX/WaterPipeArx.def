@@ -1,0 +1,4 @@
+LIBRARY VCI.WaterPipe.ARX
+EXPORTS
+    acrxEntryPoint
+    acrxGetApiVersion PRIVATE
