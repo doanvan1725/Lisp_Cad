@@ -1,0 +1,48 @@
+name: Build native WaterPipe ARX
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '06_Water_Pipe_ARX/**'
+      - '.github/workflows/build-waterpipe-arx.yml'
+
+jobs:
+  build:
+    # ObjectARX SDK must be installed on this private/self-hosted runner.
+    runs-on: [self-hosted, Windows, X64, objectarx-2025]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Locate MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Verify ObjectARX SDK
+        run: |
+          $sdk = 'C:\ObjectARX 2025'
+          if (-not (Test-Path "$sdk\inc") -or -not (Test-Path "$sdk\lib-x64")) {
+            throw "ObjectARX SDK not found at $sdk. Install ObjectARX 2025 or update ARX_SDK in the project."
+          }
+
+      - name: Build ARX
+        run: |
+          msbuild .\06_Water_Pipe_ARX\VCI.WaterPipe.ARX.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:ARX_SDK="C:\ObjectARX 2025"
+
+      - name: Package ARX
+        run: |
+          $arx = Get-ChildItem -Path . -Filter '*.arx' -Recurse | Where-Object { $_.FullName -notmatch '\\.git\\' }
+          if (-not $arx) { throw 'No .arx output found.' }
+          New-Item -ItemType Directory -Force -Path .\artifacts | Out-Null
+          Copy-Item $arx.FullName .\artifacts\VCI.WaterPipe.ARX.arx
+          Copy-Item .\06_Water_Pipe_ARX\README.md .\artifacts\README.md
+
+      - name: Upload ARX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VCI-WaterPipe-ARX
+          path: artifacts/
+          if-no-files-found: error
