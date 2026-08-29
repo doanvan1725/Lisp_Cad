@@ -1,0 +1,18 @@
+<Window x:Class="VCI.WaterPipe.PipeWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="VCI • Ống nước 2D" Width="390" SizeToContent="Height" WindowStartupLocation="CenterOwner" Background="#17202B" Foreground="#F2F5F7" ResizeMode="NoResize">
+  <Window.Resources>
+    <Style TargetType="TextBox"><Setter Property="Margin" Value="0,4,0,10"/><Setter Property="Padding" Value="9,7"/><Setter Property="Background" Value="#263442"/><Setter Property="Foreground" Value="White"/><Setter Property="BorderBrush" Value="#415364"/></Style>
+    <Style TargetType="TextBlock"><Setter Property="Margin" Value="0,3,0,0"/></Style>
+  </Window.Resources>
+  <StackPanel Margin="24">
+    <TextBlock Text="ỐNG NƯỚC 2D" FontSize="22" FontWeight="Bold" Foreground="#5CD6C0"/>
+    <TextBlock Text="Tạo tuyến ống và cút nối tự động" Foreground="#AAB8C4" Margin="0,2,0,22"/>
+    <TextBlock Text="Đường kính ngoài (mm)"/><TextBox x:Name="OuterDiameterBox" Text="90"/>
+    <TextBlock Text="Chiều dày thành ống (mm)"/><TextBox x:Name="WallThicknessBox" Text="4.5"/>
+    <TextBlock Text="Chiều dày cút nối (mm)"/><TextBox x:Name="ElbowThicknessBox" Text="4.5"/>
+    <TextBlock Text="Bán kính tim cút (mm)"/><TextBox x:Name="BendRadiusBox" Text="135"/>
+    <CheckBox x:Name="HollowBox" Content="Vẽ cả thành trong ống" IsChecked="True" Margin="0,4,0,18"/>
+    <Button Content="CHỌN TUYẾN ỐNG  →" Height="42" Click="DrawClick" Background="#35B99F" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
+    <Button Content="Đóng" Height="32" Margin="0,8,0,0" Click="CloseClick" Background="#263442" Foreground="#D5DEE5" BorderThickness="0"/>
+    <TextBlock x:Name="StatusText" Text="Nhập thông số rồi bấm Chọn tuyến ống." Foreground="#AAB8C4" TextWrapping="Wrap" Margin="0,16,0,0"/>
+  </StackPanel>
+</Window>

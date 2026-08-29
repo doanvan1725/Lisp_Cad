@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>VCI.WaterPipe</AssemblyName>
+    <RootNamespace>VCI.WaterPipe</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AcadInstallPath>C:\Program Files\Autodesk\AutoCAD 2025</AcadInstallPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="AcCoreMgd"><HintPath>$(AcadInstallPath)\AcCoreMgd.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="AcDbMgd"><HintPath>$(AcadInstallPath)\AcDbMgd.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="AcMgd"><HintPath>$(AcadInstallPath)\AcMgd.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

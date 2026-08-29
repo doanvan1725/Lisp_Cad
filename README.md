@@ -78,3 +78,7 @@ Lisp_Cad/
 2. Mo dung thu muc theo nhom chuc nang ban can.
 3. Dung `APPLOAD` hoac co che load Lisp hien co de nap file can thiet.
 4. Neu can build phan thep hinh, mo project trong Visual Studio.
+
+## Plugin ong nuoc 2D
+
+Module `05_Water_Pipe/` cung cap lenh `ONGNUOC` de ve tuyen ong 2D co thanh ong va tu dong tao cung bo tai cac diem doi huong. Xem `05_Water_Pipe/README.md`.
