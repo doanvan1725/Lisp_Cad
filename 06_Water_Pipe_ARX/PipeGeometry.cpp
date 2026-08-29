@@ -52,7 +52,7 @@ PathGeometry BuildWall(const std::vector<AcGePoint3d>& p, const Settings& s, dou
             out.lines.push_back({a, b});
         }
         for (const Bend& b : bends) {
-            double r = b.radius - b.turn * side * halfWidth;
+            double r = b.radius - b.turn * side * bendHalfWidth;
             if (r <= Eps) continue;
             AcGeVector3d va = b.inPoint - b.center, vb = b.outPoint - b.center;
             double start = std::atan2(va.y, va.x), end = std::atan2(vb.y, vb.x);

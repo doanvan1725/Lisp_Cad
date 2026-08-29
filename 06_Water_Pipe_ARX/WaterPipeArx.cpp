@@ -1,5 +1,6 @@
 #include "PipeGeometry.h"
 #include "aced.h"
+#include "adscodes.h"
 #include "acutads.h"
 #include "acdocman.h"
 #include "dbapserv.h"
@@ -20,7 +21,7 @@ static AcDbObjectId EnsureLayer(AcDbDatabase* db, const ACHAR* name)
         table->upgradeOpen();
         auto* layer = new AcDbLayerTableRecord();
         layer->setName(name);
-        table->add(layer, id);
+        table->add(id, layer);
         layer->close();
     }
     table->close();
@@ -56,7 +57,8 @@ static void DrawWaterPipe()
     route.emplace_back(raw[0], raw[1], raw[2]);
     while (true) {
         acedInitGet(0, nullptr);
-        if (acedGetPoint(route.back().asArray(), L"\nChọn điểm tiếp theo (Enter kết thúc): ", raw) != RTNORM) break;
+        ads_point base = { route.back().x, route.back().y, route.back().z };
+        if (acedGetPoint(base, L"\nChọn điểm tiếp theo (Enter kết thúc): ", raw) != RTNORM) break;
         AcGePoint3d next(raw[0], raw[1], raw[2]);
         if (next.distanceTo(route.back()) > 1e-6) route.push_back(next);
     }

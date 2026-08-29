@@ -5,6 +5,8 @@ THEP HINH/obj/
 06_Water_Pipe_ARX/.vs/
 06_Water_Pipe_ARX/x64/
 06_Water_Pipe_ARX/Release/
+06_Water_Pipe_ARX/VCI.Wate*/
+*.tlog/
 *.user
 *.suo
 *.cache
